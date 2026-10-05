@@ -1,0 +1,6 @@
+line-bot-sdk>=3.26.0
+fastapi>=0.142.0
+uvicorn>=0.54.0
+python-dotenv>=1.2.0
+httpx>=0.28.0
+pytest>=9.0.0
