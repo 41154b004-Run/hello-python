@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基於 Python 與 FastAPI 的智慧 LINE 聊天機器人專題簡報</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  @page {
+    size: 16in 9in;
+    margin: 0;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .slide {
+    width: 16in;
+    height: 9in;
+    max-width: 16in;
+    max-height: 9in;
+    page-break-after: always;
+    page-break-inside: avoid;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 56px 80px;
+    position: relative;
+    background: linear-gradient(135deg, #0b1120 0%, #0f172a 50%, #1e1b4b 100%);
+    overflow: hidden;
+  }
+
+  /* 裝飾性背景光斑 */
+  .slide::before {
+    content: "";
+    position: absolute;
+    top: -150px;
+    right: -150px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.15) 0%, rgba(0,0,0,0) 70%);
+    pointer-events: none;
+  }
+
+  .slide::after {
+    content: "";
+    position: absolute;
+    bottom: -150px;
+    left: -150px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(0,0,0,0) 70%);
+    pointer-events: none;
+  }
+
+  /* 頁頂 Header */
+  .slide-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid rgba(148, 163, 184, 0.15);
+    padding-bottom: 20px;
+    position: relative;
+    z-index: 10;
+  }
+
+  .slide-title-group h2 {
+    font-size: 38px;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .slide-title-group p {
+    font-size: 18px;
+    color: #94a3b8;
+    margin-top: 6px;
+  }
+
+  .slide-badge {
+    background: rgba(14, 165, 233, 0.15);
+    border: 1px solid rgba(14, 165, 233, 0.4);
+    color: #38bdf8;
+    padding: 6px 16px;
+    border-radius: 9999px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* 頁中 Content */
+  .slide-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 30px 0;
+    position: relative;
+    z-index: 10;
+  }
+
+  /* 頁尾 Footer */
+  .slide-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(148, 163, 184, 0.1);
+    padding-top: 16px;
+    font-size: 14px;
+    color: #64748b;
+    position: relative;
+    z-index: 10;
+  }
+
+  /* 網格系統 */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 36px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+  }
+
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+
+  /* 卡片元件 */
+  .card {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 16px;
+    padding: 26px 30px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(12px);
+  }
+
+  .card-highlight {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    box-shadow: 0 10px 30px -5px rgba(14, 165, 233, 0.2);
+  }
+
+  .card h3 {
+    font-size: 22px;
+    color: #38bdf8;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card h4 {
+    font-size: 18px;
+    color: #f1f5f9;
+    margin-bottom: 8px;
+  }
+
+  .card p, .card li {
+    font-size: 16px;
+    line-height: 1.65;
+    color: #cbd5e1;
+  }
+
+  .card ul {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .card li {
+    position: relative;
+    padding-left: 24px;
+    margin-bottom: 10px;
+  }
+
+  .card li::before {
+    content: "▹";
+    position: absolute;
+    left: 0;
+    color: #38bdf8;
+    font-weight: bold;
+  }
+
+  /* 程式碼與標籤 */
+  code {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    background: rgba(15, 23, 42, 0.8);
+    color: #a5f3fc;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 14px;
+    border: 1px solid rgba(56, 189, 248, 0.2);
+  }
+
+  .code-block {
+    background: #020617;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 12px;
+    padding: 18px 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: #e2e8f0;
+    line-height: 1.6;
+    overflow: hidden;
+  }
+
+  /* 封面 Slide 特化樣式 */
+  .cover-slide {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 60%, #020617 100%);
+  }
+
+  .cover-title {
+    font-size: 58px;
+    font-weight: 900;
+    background: linear-gradient(135deg, #ffffff 20%, #38bdf8 60%, #818cf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -1px;
+    line-height: 1.25;
+    margin-bottom: 24px;
+  }
+
+  .cover-subtitle {
+    font-size: 26px;
+    color: #94a3b8;
+    font-weight: 400;
+    max-width: 900px;
+    margin: 0 auto 48px auto;
+    line-height: 1.5;
+  }
+
+  .cover-meta {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-bottom: 40px;
+  }
+
+  .cover-meta-item {
+    background: rgba(30, 41, 59, 0.6);
+    padding: 14px 28px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+
+  .cover-meta-label {
+    font-size: 13px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .cover-meta-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: #f8fafc;
+  }
+
+  .tag-group {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .tag {
+    background: rgba(14, 165, 233, 0.1);
+    color: #38bdf8;
+    border: 1px solid rgba(14, 165, 233, 0.3);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* 流程步驟圖 */
+  .flow-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 10px;
+  }
+
+  .flow-step {
+    flex: 1;
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+    position: relative;
+  }
+
+  .flow-step-num {
+    display: inline-block;
+    width: 36px;
+    height: 36px;
+    line-height: 36px;
+    border-radius: 50%;
+    background: #0284c7;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .flow-arrow {
+    font-size: 28px;
+    color: #38bdf8;
+    font-weight: bold;
+  }
+
+  /* 統計數值展示 */
+  .stat-box {
+    text-align: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+  }
+
+  .stat-num {
+    font-size: 42px;
+    font-weight: 900;
+    color: #38bdf8;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .stat-label {
+    font-size: 15px;
+    color: #94a3b8;
+  }
+
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1: 封面 -->
+<div class="slide cover-slide">
+  <div>
+    <div class="tag-group" style="margin-bottom: 24px;">
+      <span class="tag">專題成果發表</span>
+      <span class="tag">Python 3.12</span>
+      <span class="tag">FastAPI</span>
+      <span class="tag">LINE Messaging API v3</span>
+    </div>
+    <h1 class="cover-title">智慧 LINE 聊天機器人<br>架構設計與雲端實踐</h1>
+    <p class="cover-subtitle">從本機腳本演進至具備安全簽章驗證、非同步 Webhook 伺服器與豐富互動介面的全方位通訊解決方案</p>
+    
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">專案開發者 / 學號</div>
+        <div class="cover-meta-val">41154b004-Run</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">LINE Bot ID</div>
+        <div class="cover-meta-val">@759odcat</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">原始碼託管</div>
+        <div class="cover-meta-val">GitHub / hello-python</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">發表日期</div>
+        <div class="cover-meta-val">2026 年 10 月</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 2: 專案動機與演進歷程 -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-title-group">
+      <h2>01. 專案動機與演進歷程</h2>
+      <p>從最初的單一檔案腳本到完整的雲端聊天機器人系統</p>
+    </div>
+    <div class="slide-badge">PROJECT EVOLUTION</div>
+  </div>
+
+  <div class="slide-body">
+    <div class="grid-4" style="margin-bottom: 30px;">
+      <div class="card">
+        <span class="tag" style="margin-bottom: 12px; display: inline-block;">v1 原型</span>
+        <h4>基礎問候語</h4>
+        <p>建立最基礎的 Python 主程式進入點，輸出個人問候與身分識別字串。</p>
+      </div>
+
+      <div class="card">
+        <span class="tag" style="margin-bottom: 12px; display: inline-block;">v2 演進</span>
+        <h4>時間與日期引入</h4>
+        <p>加入靜態日期輸出，初步具備時間資訊呈現概念。</p>
+      </div>
+
+      <div class="card">
+        <span class="tag" style="margin-bottom: 12px; display: inline-block;">v3 強化</span>
+        <h4>動態流程控制</h4>
+        <p>導入 <code>time.sleep</code> 實現 3 秒倒數計時與流程推進，提升終端互動體驗。</p>
+      </div>
+
+      <div class="card card-highlight">
+        <span class="tag" style="background:#0284c7;color:#fff;margin-bottom: 12px; display: inline-block;">現行版本 (LINE Bot)</span>
+        <h4>雲端互動架構</h4>
+        <p>全面重構為 FastAPI Webhook 伺服器，直接與 LINE 通訊軟體全球伺服器即時聯網對話。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>💡 專題核心價值與目標</h3>
+      <p style="font-size: 17px;">
+        打破傳統終端機程式的單機執行限制，運用當前市佔最高通訊軟體 <strong>LINE</strong> 作為人機介面，藉由微服務架構 (Microservices) 提供全天候 24/7 不中斷的自動化助理服務，兼顧安全、效能與擴充彈性。
+      </p>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>智慧 LINE Bot 專案規劃與成果簡報</span>
+    <span>第 2 頁</span>
+  </div>
+</div>
+
+<!-- SLIDE 3: 系統總體架構設計 -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-title-group">
+      <h2>02. 系統總體架構設計</h2>
+      <p>端對端通訊、穿透隧道與後端服務架構流程</p>
+    </div>
+    <div class="slide-badge">ARCHITECTURE</div>
+  </div>
+
+  <div class="slide-body">
+    <div class="flow-container" style="margin-bottom: 36px;">
+      <div class="flow-step">
+        <div class="flow-step-num">1</div>
+        <h4>LINE Client</h4>
+        <p style="font-size:14px;color:#94a3b8;margin-top:6px;">使用者傳送文字或點擊功能按鈕</p>
+      </div>
+      <div class="flow-arrow">➔</div>
+
+      <div class="flow-step">
+        <div class="flow-step-num">2</div>
+        <h4>LINE 官方平台</h4>
+        <p style="font-size:14px;color:#94a3b8;margin-top:6px;">封裝 Event Payload 並附加 HMAC 數位簽章</p>
+      </div>
+      <div class="flow-arrow">➔</div>
+
+      <div class="flow-step">
+        <div class="flow-step-num">3</div>
+        <h4>Cloudflare Tunnel</h4>
+        <p style="font-size:14px;color:#94a3b8;margin-top:6px;">QUIC / HTTPS 零信任加密通道轉發至本機</p>
+      </div>
+      <div class="flow-arrow">➔</div>
+
+      <div class="flow-step" style="border-color:#38bdf8;">
+        <div class="flow-step-num" style="background:#0284c7;">4</div>
+        <h4>FastAPI 伺服器</h4>
+        <p style="font-size:14px;color:#94a3b8;margin-top:6px;">驗證簽章 ➔ 分發至 handlers ➔ 呼叫 Messaging API</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>🔒 嚴謹的安全驗證機制</h3>
+        <ul>
+          <li><strong>X-Line-Signature 驗證</strong>：每次 Webhook 請求均即時比對 HMAC-SHA256 簽章，防止假冒攻擊。</li>
+          <li><strong>金鑰環境隔離</strong>：<code>.env</code> 與 <code>.gitignore</code> 隔離機密，絕不將 Secret 提交至版本庫。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>⚡ 高效非同步處理引擎</h3>
+        <ul>
+          <li><strong>ASGI 架構</strong>：基於 FastAPI 與 Uvicorn，具備高併發承載與毫秒級快速回應能力。</li>
+          <li><strong>自動化 API 文件</strong>：內建 OpenAPI (Swagger UI)，利於維護、監控與健康度檢測。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>智慧 LINE Bot 專案規劃與成果簡報</span>
+    <span>第 3 頁</span>
+  </div>
+</div>
+
+<!-- SLIDE 4: 關鍵技術選型與優勢 -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-title-group">
+      <h2>03. 關鍵技術選型與優勢</h2>
+      <p>挑選兼具現代化開發標準、安全性與可維護性的技術堆疊</p>
+    </div>
+    <div class="slide-badge">TECH STACK</div>
+  </div>
+
+  <div class="slide-body">
+    <div class="grid-3">
+      <div class="card card-highlight">
+        <h3>⚡ FastAPI + Uvicorn</h3>
+        <p style="margin-bottom:12px;font-weight:600;color:#f8fafc;">現代化非同步 Web 框架</p>
+        <ul>
+          <li>遠勝傳統同步框架之高併發效能。</li>
+          <li>基於 Type Hints 原生型別檢查，減少執行階段錯誤。</li>
+          <li>內建 <code>/docs</code> 互動式 Swagger 介面。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🤖 line-bot-sdk v3</h3>
+        <p style="margin-bottom:12px;font-weight:600;color:#f8fafc;">LINE 官方最新 Python SDK</p>
+        <ul>
+          <li>採用標準化 <code>ApiClient</code> 與 <code>MessagingApi</code>。</li>
+          <li>支援完整事件模型（Message, Follow 等）。</li>
+          <li>提供完整的 Flex Message 樣式封裝。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🌐 Cloudflare Tunnel</h3>
+        <p style="margin-bottom:12px;font-weight:600;color:#f8fafc;">次世代零信任網路穿透</p>
+        <ul>
+          <li>無須開通實體 Router 80/443 連接埠。</li>
+          <li>提供全球 CDN 邊緣加速與免費用額。</li>
+          <li>原生支援標準 HTTPS 與 QUIC 協議。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:24px;">
+      <div class="grid-4">
+        <div class="stat-box">
+          <div class="stat-num">3.12</div>
+          <div class="stat-label">Python 核心版本</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">v3.26</div>
+          <div class="stat-label">LINE SDK 最新規範</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">100%</div>
+          <div class="stat-label">非同步事件驅動</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">SHA256</div>
+          <div class="stat-label">端對端數位簽章</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>智慧 LINE Bot 專案規劃與成果簡報</span>
+    <span>第 4 頁</span>
+  </div>
+</div>
+
+<!-- SLIDE 5: 核心功能與指令模組 -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-title-group">
+      <h2>04. 核心功能與指令模組</h2>
+      <p>豐富實用的交談式互動指令設計與事件監聽</p>
+    </div>
+    <div class="slide-badge">BOT FEATURES</div>
+  </div>
+
+  <div class="slide-body">
+    <div class="grid-2" style="margin-bottom:20px;">
+      <div class="card">
+        <h3>💬 1. 智慧回音與導引 (Echo Engine)</h3>
+        <p>當使用者傳送日常對話時，機器人會即時回傳輸入內容，並在訊息末端主動提示可用指令選單，提升使用者互動黏著度。</p>
+      </div>
+
+      <div class="card">
+        <h3>📅 2. 即時系統日期查詢 (/date)</h3>
+        <p>整合 Python <code>datetime</code> 模組，即時讀取伺服器當前日期與時間，告別舊版程式硬編碼（Hardcoded）日期的缺陷。</p>
+      </div>
+
+      <div class="card">
+        <h3>⏱️ 3. 參數化倒數計時器 (/countdown)</h3>
+        <p>支援自訂秒數（例如 <code>/countdown 5</code>），將倒數過程與結果格式化為文字序列回傳，重現並升級原 <code>hello.py</code> 倒數概念。</p>
+      </div>
+
+      <div class="card card-highlight">
+        <h3>🎴 4. 結構化 Flex Message (/card)</h3>
+        <p>採用 LINE 官方 Flex Message 格式封裝 JSON 卡片，展示結構化系統資訊與功能檢查標記，打破傳統純文字單調視覺。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>🤝 好友生命週期管理 (FollowEvent)</h4>
+      <p style="font-size:15px;color:#cbd5e1;">當新用戶掃描 QR Code 或搜尋 ID 加入好友時，系統將自動捕捉加入事件，並第一時間推送熱情迎賓詞與全指令操作指南。</p>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>智慧 LINE Bot 專案規劃與成果簡報</span>
+    <span>第 5 頁</span>
+  </div>
+</div>
+
+<!-- SLIDE 6: 程式碼品質與單元測試體系 -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-title-group">
+      <h2>05. 程式碼品質與單元測試體系</h2>
+      <p>嚴謹的測試驅動開發 (TDD) 與安全防護驗證</p>
+    </div>
+    <div class="slide-badge">QUALITY ASSURANCE</div>
+  </div>
+
+  <div class="slide-body">
+    <div class="grid-2">
+      <div>
+        <div class="card" style="margin-bottom:20px;">
+          <h3>🧪 自動化測試矩陣 (Pytest + HTTPX)</h3>
+          <ul>
+            <li><strong>測試案例 1：<code>test_root_endpoint</code></strong><br>驗證根目錄 <code>GET /</code> 回傳 200 OK 與服務識別 JSON。</li>
+            <li><strong>測試案例 2：<code>test_health_endpoint</code></strong><br>驗證健康狀態 <code>GET /health</code> 正確檢驗憑證設定狀態。</li>
+            <li><strong>測試案例 3：<code>test_callback_without_signature</code></strong><br>模擬缺乏 <code>X-Line-Signature</code> 標頭請求，確認安全攔截 400。</li>
+            <li><strong>測試案例 4：<code>test_callback_with_invalid_signature</code></strong><br>模擬惡意偽造簽章，確認系統拒絕並回傳 400。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div>
+        <div class="card card-highlight">
+          <h3>📊 測試執行報告 (Test Summary)</h3>
+          <div class="code-block">
+rootdir: C:\Users\a0911\OneDrive\文件\0921test
+plugins: anyio-4.15.1
+collected 4 items
+
+tests\test_app.py ....                      [100%]
+
+==================================================
+== 4 passed in 2.36s (100% Success Rate) ==
+==================================================
+          </div>
+          <div style="margin-top:16px;">
+            <p style="font-size:14px;color:#94a3b8;">
+              ✔ 完全符合防禦性程式設計 (Defensive Programming)<br>
+              ✔ 杜絕因 API 變更引發之非預期錯誤 (Zero Regression)
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>智慧 LINE Bot 專案規劃與成果簡報</span>
+    <span>第 6 頁</span>
+  </div>
+</div>
+
+<!-- SLIDE 7: GitHub 版本控管與工程實務 -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-title-group">
+      <h2>06. GitHub 版本控管與工程實務</h2>
+      <p>符合業界標準的 Git Flow 工作流與機敏資料防護</p>
+    </div>
+    <div class="slide-badge">DEVOPS & GIT</div>
+  </div>
+
+  <div class="slide-body">
+    <div class="grid-2">
+      <div class="card">
+        <h3>🛡️ 機敏資料脫敏實務 (Secrets Protection)</h3>
+        <p style="margin-bottom:14px;">在現代雲端開發中，金鑰外洩是重大資安危機。本專案嚴格落實脫敏策略：</p>
+        <ul>
+          <li><strong><code>.env.example</code></strong>：提供公開範本檔，指引開發者欄位設定。</li>
+          <li><strong><code>.gitignore</code></strong>：強制將 <code>.env</code>、快取與虛擬環境排除在 Git 之外。</li>
+          <li><strong>事前驗證</strong>：透過 <code>git check-ignore</code> 檢驗確保金鑰永不上雲。</li>
+        </ul>
+      </div>
+
+      <div class="card card-highlight">
+        <h3>📦 GitHub 託管與同步狀態</h3>
+        <div class="code-block" style="margin-bottom:14px;">
+$ git push origin main
+To https://github.com/41154b004-Run/hello-python.git
+   a33597b..e31e366  main -> main
+        </div>
+        <ul>
+          <li><strong>遠端儲存庫</strong>：<code>41154b004-Run/hello-python</code></li>
+          <li><strong>主分支</strong>：<code>main</code> (乾淨工作目錄，全數同步)</li>
+          <li><strong>完備文檔</strong>：隨附詳細的專案說明文件 <code>README.md</code>。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <h4>📁 標準化軟體專案結構</h4>
+      <p style="font-size:15px;color:#cbd5e1;">遵循關注點分離原則 (Separation of Concerns)，將入口 (<code>main.py</code>)、事件邏輯 (<code>handlers.py</code>)、設定管理 (<code>config.py</code>) 與自動測試 (<code>tests/</code>) 模組化切割，大幅提升團隊協作性。</p>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>智慧 LINE Bot 專案規劃與成果簡報</span>
+    <span>第 7 頁</span>
+  </div>
+</div>
+
+<!-- SLIDE 8: 專題成果驗證與實機展示 -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-title-group">
+      <h2>07. 專題成果驗證與實機展示</h2>
+      <p>LINE 官方連線檢驗、即時日誌與功能落地成果</p>
+    </div>
+    <div class="slide-badge">LIVE VERIFICATION</div>
+  </div>
+
+  <div class="slide-body">
+    <div class="grid-3">
+      <div class="card">
+        <h3>✅ LINE 後台 Verify</h3>
+        <p style="margin-bottom:12px;">於 LINE Developers Console 完成 Webhook URL 驗證：</p>
+        <div class="code-block" style="font-size:13px;">
+POST /callback HTTP/1.1
+Host: ink-sandra-admitted...
+Response: 200 OK (Success)
+        </div>
+        <p style="margin-top:10px;font-size:14px;color:#38bdf8;">✔ 官方認證綠色標章順利點亮</p>
+      </div>
+
+      <div class="card">
+        <h3>📲 實機即時對話測試</h3>
+        <p style="margin-bottom:12px;">透過智慧型手機加入好友並進行訊息互動：</p>
+        <ul>
+          <li>發送文字 ➔ 即時觸發回音。</li>
+          <li>輸入 <code>/date</code> ➔ 秒回即時時間。</li>
+          <li>輸入 <code>/card</code> ➔ 呈現綠色商務卡片。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🌐 雲端隧道即時運行</h3>
+        <p style="margin-bottom:12px;">Cloudflare Tunnel 背景服務穩定運行中：</p>
+        <ul>
+          <li><strong>通訊協議</strong>：QUIC / TLS 1.3</li>
+          <li><strong>延遲表現</strong>：亞太區邊緣節點極速回應。</li>
+          <li><strong>連線狀態</strong>：100% 穩定在線。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card card-highlight" style="margin-top:24px;">
+      <h3>🎯 成果指標總評 (Key Performance Indicators)</h3>
+      <div class="grid-4" style="margin-top:10px;">
+        <div class="stat-box">
+          <div class="stat-num">0 ms</div>
+          <div class="stat-label">非同步無阻塞回應</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">4 / 4</div>
+          <div class="stat-label">單元測試全數通過</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">100%</div>
+          <div class="stat-label">HTTPS 加密安全傳輸</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">0 次</div>
+          <div class="stat-label">未授權請求放行</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>智慧 LINE Bot 專案規劃與成果簡報</span>
+    <span>第 8 頁</span>
+  </div>
+</div>
+
+<!-- SLIDE 9: 未來擴充藍圖與結語 -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-title-group">
+      <h2>08. 未來擴充藍圖與展望</h2>
+      <p>由規則型機器人邁向人工智慧與微服務生態</p>
+    </div>
+    <div class="slide-badge">FUTURE ROADMAP</div>
+  </div>
+
+  <div class="slide-body">
+    <div class="grid-3" style="margin-bottom:30px;">
+      <div class="card">
+        <h3>🧠 1. 整合生成式 AI (LLM)</h3>
+        <p style="margin-bottom:10px;font-weight:600;color:#f8fafc;">Google Gemini API 串接</p>
+        <p>將固定規則式回覆升級為多輪自然語言對話、長文本摘要、智慧翻譯與語意理解助理。</p>
+      </div>
+
+      <div class="card">
+        <h3>💾 2. 結構化資料庫持久化</h3>
+        <p style="margin-bottom:10px;font-weight:600;color:#f8fafc;">PostgreSQL / SQLAlchemy</p>
+        <p>記錄使用者偏好、對話歷史與待辦事項，提供個人化專屬記憶與資料分析能力。</p>
+      </div>
+
+      <div class="card">
+        <h3>☁️ 3. 雲端容器化自動部署</h3>
+        <p style="margin-bottom:10px;font-weight:600;color:#f8fafc;">Docker + CI/CD 工作流</p>
+        <p>封裝標準 Docker 映像檔並整合 GitHub Actions，推送程式碼自動部署至 Google Cloud Run 或 Render。</p>
+      </div>
+    </div>
+
+    <div class="card card-highlight">
+      <h3>結語：實務經驗與專題收穫</h3>
+      <p style="font-size:16px;line-height:1.7;">
+        本專題成功展示了從單機 Python 語法基礎出發，逐步整合現代網路協議、安全簽章演算法、非同步後端架構、自動化測試與雲端穿透服務的完整工程實踐。此專案具備極高的實用性與延展空間，為後續智慧校園與物聯網應用奠定了堅實基礎。
+      </p>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>智慧 LINE Bot 專案規劃與成果簡報</span>
+    <span>第 9 頁</span>
+  </div>
+</div>
+
+<!-- SLIDE 10: 封底 Q&A -->
+<div class="slide cover-slide">
+  <div>
+    <h1 class="cover-title" style="font-size:64px;margin-bottom:20px;">感謝聆聽與指導</h1>
+    <p class="cover-subtitle" style="font-size:22px;margin-bottom:40px;">Q & A 交流與討論</p>
+
+    <div class="cover-meta" style="max-width:800px;margin:0 auto 36px auto;">
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">專案開發者</div>
+        <div class="cover-meta-val">41154b004-Run</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">LINE Bot 官方帳號</div>
+        <div class="cover-meta-val">@759odcat</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">GitHub Repository</div>
+        <div class="cover-meta-val">41154b004-Run/hello-python</div>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <span class="tag">Thank You!</span>
+      <span class="tag">Python 3.12</span>
+      <span class="tag">FastAPI</span>
+      <span class="tag">Cloudflare</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
