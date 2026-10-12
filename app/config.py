@@ -12,6 +12,7 @@ LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "").strip()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 DIFY_API_KEY = os.getenv("DIFY_API_KEY", "").strip()
 DIFY_API_URL = os.getenv("DIFY_API_URL", "https://api.dify.ai/v1").strip()
+DIFY_MCP_URL = os.getenv("DIFY_MCP_URL", "").strip()
 PORT = int(os.getenv("PORT", 8000))
 
 def check_credentials():

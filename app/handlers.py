@@ -25,7 +25,45 @@ from app import chat_engine, config
 logger = logging.getLogger("line-bot")
 
 # ─────────────────────────────────────────────
-# Dify AI 串接
+# Dify MCP 服務器串接
+# ─────────────────────────────────────────────
+def _ask_dify_mcp(user_text: str) -> str:
+    """呼叫 Dify MCP 伺服器 (JSON-RPC 2.0 tools/call)"""
+    if not config.DIFY_MCP_URL:
+        return ""
+    
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "Personalized Memory Assistant",
+            "arguments": {
+                "query": user_text
+            }
+        }
+    }
+    try:
+        response = httpx.post(config.DIFY_MCP_URL, json=payload, timeout=30.0)
+        if response.status_code == 200:
+            data = response.json()
+            if "result" in data and "content" in data["result"]:
+                contents = data["result"]["content"]
+                if isinstance(contents, list) and len(contents) > 0:
+                    text_parts = [c.get("text", "") for c in contents if isinstance(c, dict) and c.get("type") == "text"]
+                    ans = "\n".join(filter(None, text_parts)).strip()
+                    if ans:
+                        return ans
+            elif "error" in data:
+                logger.warning("Dify MCP returned error: %s", data["error"])
+        else:
+            logger.warning("Dify MCP returned status %s: %s", response.status_code, response.text)
+    except Exception as e:
+        logger.error("Dify MCP request error: %s", str(e))
+    return ""
+
+# ─────────────────────────────────────────────
+# Dify AI Chat 串接
 # ─────────────────────────────────────────────
 def _ask_dify(user_text: str, user_id: str) -> str:
     """呼叫 Dify API 生成對話回答"""
@@ -100,13 +138,18 @@ def _ask_gemini(user_text: str, user_id: str) -> str:
         return ""
 
 def _ask_ai(user_text: str, user_id: str) -> str:
-    """優先透過 Dify 生成回答，若未設定或出錯則嘗試 Gemini，皆無法回答時給予友善提示"""
-    # 1. 嘗試 Dify
+    """優先透過 Dify MCP / Dify Chat 生成回答，若未設定或出錯則嘗試 Gemini，皆無法回答時給予友善提示"""
+    # 1. 嘗試 Dify MCP 服務器 (Personalized Memory Assistant)
+    mcp_reply = _ask_dify_mcp(user_text)
+    if mcp_reply:
+        return mcp_reply
+
+    # 2. 嘗試 Dify Chat API
     dify_reply = _ask_dify(user_text, user_id)
     if dify_reply:
         return dify_reply
     
-    # 2. 嘗試 Gemini
+    # 3. 嘗試 Gemini
     gemini_reply = _ask_gemini(user_text, user_id)
     if gemini_reply:
         return gemini_reply
