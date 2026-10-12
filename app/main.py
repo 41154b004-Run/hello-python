@@ -83,10 +83,12 @@ async def callback(request: Request, x_line_signature: str = Header(None)):
 
     # 取得原始請求內容二進位字串（簽章驗證必須使用 raw body）
     body = (await request.body()).decode("utf-8")
+    logger.info("Webhook received! Payload: %s", body)
 
     try:
         # 驗證簽章並分發事件
         handler.handle(body, x_line_signature)
+        logger.info("Webhook event handled successfully.")
     except InvalidSignatureError:
         logger.error("簽章驗證失敗 (InvalidSignatureError)！請確認 Channel Secret 是否正確。")
         raise HTTPException(
