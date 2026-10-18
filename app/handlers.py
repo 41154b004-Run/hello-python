@@ -20,7 +20,7 @@ from linebot.v3.webhooks import (
 from google import genai
 from google.genai import types as genai_types
 import httpx
-from app import chat_engine, config
+from app import chat_engine, config, web_search
 
 logger = logging.getLogger("line-bot")
 
@@ -137,56 +137,98 @@ def _ask_gemini(user_text: str, user_id: str) -> str:
         logger.error("Gemini API error: %s", str(e))
         return ""
 
-def _ask_ollama(user_text: str, user_id: str) -> str:
-    """呼叫本機 Ollama 執行推論 (預設使用 qwen2.5:1.5b)"""
+def _ask_ollama(user_text: str, user_id: str, force_search: bool = False) -> str:
+    """
+    呼叫本機 Ollama 執行推論，具備即時聯網檢索 (RAG) 強化能力
+    """
     style = chat_engine.get_user_style(user_id)
     persona_map = {
-        "normal":   "你是一位友善親切的 LINE 聊天助理，請用繁體中文簡潔活潑地回答。",
-        "tsundere": "你是傲嬌的 LINE 助理，說繁體中文，嘴上說不在意但認真回答，常說「哼」、「才不是特地回答你的」。",
-        "formal":   "你是專業嚴謹的中文秘書，使用正式敬語提供精準資訊。",
-        "funny":    "你是超幽默搞笑的 LINE 助理，用繁體中文回答，充滿笑話與梗。",
+        "normal":   "你是一位友善親切、回答精準且具備即時聯網能力的 LINE 聊天助理，請用繁體中文回答，條理清晰。",
+        "tsundere": "你是傲嬌的 LINE 助理，說繁體中文，嘴上說不在意但認真回答，常說「哼」、「才不是特地幫你查的呢」。",
+        "formal":   "你是專業嚴謹的中文秘書，使用正式敬語，提供最新、精確的資訊。",
+        "funny":    "你是超幽默搞笑的 LINE 助理，用繁體中文回答，結合最新網路資訊與笑話梗。",
         "kawaii":   "你是超可愛的 LINE 助理，說繁體中文，常用顏文字 (≧▽≦) 🌸。",
-        "cool":     "你是酷炫簡潔的 AI 助理，說繁體中文，用詞精煉有力，不廢話。",
+        "cool":     "你是酷炫簡潔的 AI 助理，說繁體中文，用詞精煉有力，直切要點。",
     }
-    system_prompt = persona_map.get(style, persona_map["normal"])
-    try:
-        payload = {
-            "model": "qwen2.5:1.5b",
-            "prompt": user_text,
-            "system": system_prompt,
-            "stream": False,
-            "options": {
-                "num_predict": 300
+    base_persona = persona_map.get(style, persona_map["normal"])
+
+    # 1. 判斷是否需要進行即時聯網搜尋
+    web_context = ""
+    if force_search or web_search.should_search_web(user_text):
+        logger.info("Executing real-time web search for query: %s", user_text)
+        web_context = web_search.search_web(user_text, max_results=3)
+
+    if web_context:
+        system_prompt = (
+            f"{base_persona}\n\n"
+            "【系統指示：你已連上即時網路搜尋引擎】\n"
+            "以下是針對使用者提問剛剛檢索到的最新即時網路資料：\n"
+            "------------------------------------\n"
+            f"{web_context}\n"
+            "------------------------------------\n"
+            "回答規則：\n"
+            "1. 請務必使用繁體中文，依據上述最新網路資料回答，避免給出過時或錯誤資訊。\n"
+            "2. 重點分明、言簡意賅，直接回答問題核心。\n"
+            "3. 結尾可自然備註來源標題或參考連結。"
+        )
+    else:
+        system_prompt = base_persona
+
+    # 2. 模型調度清單（依使用者偏好 3B / 1.5B 優先調用）
+    user_preferred = chat_engine.get_user_model(user_id)
+    candidate_models = [user_preferred, config.OLLAMA_MODEL, "qwen2.5:3b", "qwen2.5:1.5b"]
+    seen = set()
+    models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
+
+    for model_name in models_to_try:
+        try:
+            payload = {
+                "model": model_name,
+                "prompt": user_text,
+                "system": system_prompt,
+                "stream": False,
+                "options": {
+                    "num_predict": 400
+                }
             }
-        }
-        resp = httpx.post("http://localhost:11434/api/generate", json=payload, timeout=25.0)
-        if resp.status_code == 200:
-            return resp.json().get("response", "").strip()
-    except Exception as e:
-        logger.warning("Local Ollama inference failed or not reachable: %s", str(e))
+            resp = httpx.post(f"{config.OLLAMA_URL.rstrip('/')}/api/generate", json=payload, timeout=45.0)
+            if resp.status_code == 200:
+                answer = resp.json().get("response", "").strip()
+                if answer:
+                    return answer
+        except Exception as e:
+            logger.warning("Local Ollama model %s query failed: %s", model_name, str(e))
+            continue
+
     return ""
 
-def _ask_ai(user_text: str, user_id: str) -> str:
-    """優先順序：Dify MCP -> Dify Chat -> Gemini -> 本機 Ollama (qwen2.5:1.5b)"""
-    # 1. 嘗試 Dify MCP 服務器 (Personalized Memory Assistant)
-    mcp_reply = _ask_dify_mcp(user_text)
-    if mcp_reply:
-        return mcp_reply
+def _ask_ai(user_text: str, user_id: str, force_search: bool = False) -> str:
+    """
+    AI 引擎優先順序：
+    1. 首選：本機 Ollama (Qwen 2.5) + 即時連網搜尋 (RAG Grounding)
+       - 速度快、無用量限制、具備最新網路資訊！
+    2. 次選：Gemini AI (若有配置有效金鑰)
+    3. 備援：Dify MCP / Dify API (若有配置有效金鑰)
+    """
+    # 1. 優先使用本機 Ollama 智慧模型 + 即時連網
+    ollama_reply = _ask_ollama(user_text, user_id, force_search=force_search)
+    if ollama_reply:
+        return ollama_reply
 
-    # 2. 嘗試 Dify Chat API
-    dify_reply = _ask_dify(user_text, user_id)
-    if dify_reply:
-        return dify_reply
-    
-    # 3. 嘗試 Gemini
+    # 2. 備援：Gemini AI
     gemini_reply = _ask_gemini(user_text, user_id)
     if gemini_reply:
         return gemini_reply
 
-    # 4. 嘗試本機 Ollama (qwen2.5:1.5b，完全免費、離線且極速)
-    ollama_reply = _ask_ollama(user_text, user_id)
-    if ollama_reply:
-        return ollama_reply
+    # 3. 備援：Dify MCP
+    mcp_reply = _ask_dify_mcp(user_text)
+    if mcp_reply:
+        return mcp_reply
+
+    # 4. 備援：Dify Chat API
+    dify_reply = _ask_dify(user_text, user_id)
+    if dify_reply:
+        return dify_reply
 
     # 5. 若皆未啟用或失敗
     return (
@@ -271,19 +313,56 @@ def register_handlers(handler, configuration):
                 )
                 return
 
-            # 2. 幫助指令選單
+            # 2. 切換或查看本機 AI 模型: /model [3b|1.5b]
+            if user_lower.startswith("/model") or user_lower in ["model", "模型"]:
+                parts = user_text.split()
+                if len(parts) > 1:
+                    result_msg = chat_engine.set_user_model(user_id, parts[1])
+                else:
+                    cur_model = chat_engine.get_user_model(user_id)
+                    model_opts = "\n".join([f"  • /model {k} : {v[1]}" for k, v in chat_engine.MODEL_OPTIONS.items()])
+                    result_msg = (
+                        f"🤖 【本機 AI 引擎配置】\n"
+                        f"• 目前運行模型：【{cur_model}】\n"
+                        f"• 即時聯網搜尋：✅ 已啟用 (DuckDuckGo RAG)\n"
+                        f"• 伺服器狀態：本機運行 (Ollama @ {config.OLLAMA_URL})\n\n"
+                        f"切換模型規格：\n{model_opts}"
+                    )
+                line_bot_api.reply_message(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(text=result_msg)]
+                    )
+                )
+                return
+
+            # 3. 強制執行即時聯網搜尋: /search [關鍵字] 或 搜尋 [關鍵字]
+            if user_lower.startswith(("/search", "/google", "搜尋", "查一下", "找一下")):
+                reply_text = _ask_ai(user_text, user_id, force_search=True)
+                line_bot_api.reply_message(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(text=reply_text)]
+                    )
+                )
+                return
+
+            # 4. 幫助指令選單
             if user_lower in ["/help", "help", "幫助", "指令", "選單", "功能"]:
                 current_style = chat_engine.get_user_style(user_id)
                 style_label = chat_engine.STYLE_NAMES.get(current_style, current_style)
+                current_model = chat_engine.get_user_model(user_id)
                 reply_content = (
-                    "🤖 【Python LINE Bot × Gemini AI 完整指南】\n"
+                    "🤖 【智慧 LINE Bot × 本機連網 AI 完整指南】\n"
                     "─────────────────────────────\n"
-                    "🧠 AI 問答（直接說話即可）：\n"
-                    "  直接輸入任何問題，Gemini AI 即時回答！\n\n"
+                    "🧠 智慧問答（直接說話即可）：\n"
+                    f"  由本機模型【{current_model}】提供離線極速運算，\n"
+                    "  並具備【即時網路搜尋】能力！時事、新聞、天氣皆可查詢。\n\n"
+                    "🌐 聯網與模型控制：\n"
+                    "  • /model [3b|1.5b] : 切換高智慧或極速模型\n"
+                    "  • /search [關鍵字] : 強制進行最新網路搜尋\n\n"
                     "🌟 趣味互動：\n"
-                    "  • 講笑話 / /joke\n"
-                    "  • 今日運勢 / /fortune\n"
-                    "  • 吃什麼 / /food\n"
+                    "  • 講笑話 / /joke | 今日運勢 / /fortune | 吃什麼 / /food\n"
                     "  • 傳送任意貼圖 → 我回貼圖！\n\n"
                     f"🎭 個性切換 (目前: {style_label})：\n"
                     "  • /style normal   親切夥伴風\n"

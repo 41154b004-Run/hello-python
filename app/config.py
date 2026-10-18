@@ -13,6 +13,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 DIFY_API_KEY = os.getenv("DIFY_API_KEY", "").strip()
 DIFY_API_URL = os.getenv("DIFY_API_URL", "https://api.dify.ai/v1").strip()
 DIFY_MCP_URL = os.getenv("DIFY_MCP_URL", "").strip()
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").strip()
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b").strip()
 PORT = int(os.getenv("PORT", 8000))
 
 def check_credentials():

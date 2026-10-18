@@ -3,6 +3,33 @@ from typing import Tuple, List, Optional
 
 # 使用者風格偏好 (記憶體儲存，亦可擴充至資料庫)
 user_styles = {}
+user_models = {}
+
+MODEL_OPTIONS = {
+    "3b":   ("qwen2.5:3b",   "高智慧推理版 (1.9GB，邏輯與中文理解更強) 🧠"),
+    "1.5b": ("qwen2.5:1.5b", "極速輕量版 (986MB，~20字/秒，80% GPU加速) ⚡"),
+}
+
+def get_user_model(user_id: str) -> str:
+    """取得使用者選擇的本機模型 (預設優先使用 3B)"""
+    return user_models.get(user_id, "qwen2.5:3b")
+
+def set_user_model(user_id: str, model_key: str) -> str:
+    """切換使用者選擇的模型"""
+    key = model_key.lower().replace("qwen", "").replace(":", "").replace("-", "").strip()
+    if key in ["1.5", "1.5b", "fast", "speed"]:
+        user_models[user_id] = "qwen2.5:1.5b"
+        return "✅ 已切換為【Qwen 2.5 1.5B 極速版 ⚡】！"
+    elif key in ["3", "3b", "smart", "pro"]:
+        user_models[user_id] = "qwen2.5:3b"
+        return "✅ 已切換為【Qwen 2.5 3B 高智慧推理版 🧠】！"
+    else:
+        return (
+            "❌ 未知模型規格。可選模型：\n"
+            "• /model 3b   : 高智慧推理版 (首選，邏輯更強)\n"
+            "• /model 1.5b : 極速輕量版 (反應最快)"
+        )
+
 
 # 官方免費用貼圖庫 (Package ID, Sticker ID)
 STICKERS = {
