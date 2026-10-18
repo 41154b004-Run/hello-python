@@ -137,8 +137,37 @@ def _ask_gemini(user_text: str, user_id: str) -> str:
         logger.error("Gemini API error: %s", str(e))
         return ""
 
+def _ask_ollama(user_text: str, user_id: str) -> str:
+    """呼叫本機 Ollama 執行推論 (預設使用 qwen2.5:1.5b)"""
+    style = chat_engine.get_user_style(user_id)
+    persona_map = {
+        "normal":   "你是一位友善親切的 LINE 聊天助理，請用繁體中文簡潔活潑地回答。",
+        "tsundere": "你是傲嬌的 LINE 助理，說繁體中文，嘴上說不在意但認真回答，常說「哼」、「才不是特地回答你的」。",
+        "formal":   "你是專業嚴謹的中文秘書，使用正式敬語提供精準資訊。",
+        "funny":    "你是超幽默搞笑的 LINE 助理，用繁體中文回答，充滿笑話與梗。",
+        "kawaii":   "你是超可愛的 LINE 助理，說繁體中文，常用顏文字 (≧▽≦) 🌸。",
+        "cool":     "你是酷炫簡潔的 AI 助理，說繁體中文，用詞精煉有力，不廢話。",
+    }
+    system_prompt = persona_map.get(style, persona_map["normal"])
+    try:
+        payload = {
+            "model": "qwen2.5:1.5b",
+            "prompt": user_text,
+            "system": system_prompt,
+            "stream": False,
+            "options": {
+                "num_predict": 300
+            }
+        }
+        resp = httpx.post("http://localhost:11434/api/generate", json=payload, timeout=25.0)
+        if resp.status_code == 200:
+            return resp.json().get("response", "").strip()
+    except Exception as e:
+        logger.warning("Local Ollama inference failed or not reachable: %s", str(e))
+    return ""
+
 def _ask_ai(user_text: str, user_id: str) -> str:
-    """優先透過 Dify MCP / Dify Chat 生成回答，若未設定或出錯則嘗試 Gemini，皆無法回答時給予友善提示"""
+    """優先順序：Dify MCP -> Dify Chat -> Gemini -> 本機 Ollama (qwen2.5:1.5b)"""
     # 1. 嘗試 Dify MCP 服務器 (Personalized Memory Assistant)
     mcp_reply = _ask_dify_mcp(user_text)
     if mcp_reply:
@@ -154,10 +183,15 @@ def _ask_ai(user_text: str, user_id: str) -> str:
     if gemini_reply:
         return gemini_reply
 
-    # 3. 若皆未啟用或失敗
+    # 4. 嘗試本機 Ollama (qwen2.5:1.5b，完全免費、離線且極速)
+    ollama_reply = _ask_ollama(user_text, user_id)
+    if ollama_reply:
+        return ollama_reply
+
+    # 5. 若皆未啟用或失敗
     return (
         "收到你的訊息了！😊\n"
-        "目前 AI 大腦連線稍有延遲或金鑰正在驗證中。\n"
+        "目前 AI 服務正在初始化中。\n"
         "你可以先輸入 /help 查看各項生活工具與多風格對話指令喔！"
     )
 
