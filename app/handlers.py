@@ -205,20 +205,19 @@ def _ask_ollama(user_text: str, user_id: str, force_search: bool = False) -> str
 def _ask_ai(user_text: str, user_id: str, force_search: bool = False) -> str:
     """
     AI 引擎優先順序：
-    1. 首選：本機 Ollama (Qwen 2.5) + 即時連網搜尋 (RAG Grounding)
-       - 速度快、無用量限制、具備最新網路資訊！
-    2. 次選：Gemini AI (若有配置有效金鑰)
+    1. 首選：Gemini AI (gemini-2.0-flash) - 雲端高品質、速度快、答案精準
+    2. 次選：本機 Ollama (Qwen 2.5) + 即時連網搜尋 (RAG Grounding) - 離線備援
     3. 備援：Dify MCP / Dify API (若有配置有效金鑰)
     """
-    # 1. 優先使用本機 Ollama 智慧模型 + 即時連網
-    ollama_reply = _ask_ollama(user_text, user_id, force_search=force_search)
-    if ollama_reply:
-        return ollama_reply
-
-    # 2. 備援：Gemini AI
+    # 1. 優先使用 Gemini AI（雲端高品質模型，速度快且答案精準）
     gemini_reply = _ask_gemini(user_text, user_id)
     if gemini_reply:
         return gemini_reply
+
+    # 2. 備援：本機 Ollama 智慧模型 + 即時連網
+    ollama_reply = _ask_ollama(user_text, user_id, force_search=force_search)
+    if ollama_reply:
+        return ollama_reply
 
     # 3. 備援：Dify MCP
     mcp_reply = _ask_dify_mcp(user_text)
