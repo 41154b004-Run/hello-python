@@ -123,19 +123,35 @@ def _ask_gemini(user_text: str, user_id: str) -> str:
     }
     system_prompt = persona_map.get(style, persona_map["normal"])
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=user_text,
-            config=genai_types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                max_output_tokens=500,
+    # 依序嘗試可用模型（使用穩定別名優先，應對版本停用問題）
+    candidate_models = [
+        "gemini-flash-lite-latest",   # 官方穩定別名：最新 Flash Lite（已確認可用）
+        "gemini-3.1-flash-lite",      # 具體版本備援
+        "gemini-3.8-flash",           # 更強版本（高負載時 fallback）
+        "gemini-flash-latest",        # Flash 穩定別名
+    ]
+    for model_name in candidate_models:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=user_text,
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    max_output_tokens=600,
+                )
             )
-        )
-        return response.text.strip()
-    except Exception as e:
-        logger.error("Gemini API error: %s", str(e))
-        return ""
+            if response.text:
+                logger.info("Gemini responded using model: %s", model_name)
+                return response.text.strip()
+        except Exception as e:
+            err_str = str(e)
+            if "NOT_FOUND" in err_str or "no longer available" in err_str or "deprecated" in err_str.lower():
+                logger.warning("Gemini model %s not available, trying next. Error: %s", model_name, err_str[:120])
+                continue
+            else:
+                logger.error("Gemini API error with model %s: %s", model_name, err_str)
+                break
+    return ""
 
 def _ask_ollama(user_text: str, user_id: str, force_search: bool = False) -> str:
     """
